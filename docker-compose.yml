@@ -1,0 +1,150 @@
+x-redis-cluster-common:
+  &redis-cluster-common
+  image: redis:7-alpine
+  env_file: &redis-cluster-env
+    - .env
+  command: [
+    "redis-server",
+#    "--requirepass", "${REDIS_CLUSTER_PASSWORD}",
+#    "--masterauth", "${REDIS_CLUSTER_PASSWORD}",
+    "--cluster-enabled", "yes",
+    "--cluster-config-file", "nodes.conf",
+    "--cluster-node-timeout", "5000",
+    "--appendonly", "yes",
+    "--aclfile", "/data/acl.conf"
+  ]
+  networks: &redis-cluster-net
+    - redis_cluster_net
+  healthcheck:
+#    test: [ "CMD", "redis-cli", "-a", "${REDIS_CLUSTER_PASSWORD}", "ping" ]
+    test: [ "CMD", "redis-cli", "--user", "${REDIS_CLUSTER_DEFAULT_USERNAME}", "ping" ]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+  restart: unless-stopped
+
+services:
+  redis-node-1:
+    <<: *redis-cluster-common
+    container_name: redis-node-1
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+      - ./data/node_1:/data
+
+  redis-node-2:
+    <<: *redis-cluster-common
+    container_name: redis-node-2
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+      - ./data/node_2:/data
+
+  redis-node-3:
+    <<: *redis-cluster-common
+    container_name: redis-node-3
+    ports:
+      - "6381:6379"
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+      - ./data/node_3:/data
+
+  redis-node-4:
+    <<: *redis-cluster-common
+    container_name: redis-node-4
+    ports:
+      - "6382:6379"
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+      - ./data/node_4:/data
+
+  redis-node-5:
+    <<: *redis-cluster-common
+    container_name: redis-node-5
+    ports:
+      - "6383:6379"
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+      - ./data/node_5:/data
+
+  redis-node-6:
+    <<: *redis-cluster-common
+    container_name: redis-node-6
+    ports:
+      - "6384:6379"
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+      - ./data/node_6:/data
+
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: redis-cluster-init
+    command: >
+      sh -c "
+      echo "yes" 
+      | 
+      redis-cli
+      --user ${REDIS_CLUSTER_DEFAULT_USERNAME}
+      --cluster create 
+      redis-node-1:6379 
+      redis-node-2:6379 
+      redis-node-3:6379 
+      redis-node-4:6379 
+      redis-node-5:6379 
+      redis-node-6:6379 
+      --cluster-replicas 1
+      "
+    env_file: *redis-cluster-env
+    volumes:
+      - ./conf/acl.conf:/data/acl.conf
+    networks: *redis-cluster-net
+    depends_on:
+      redis-node-1:
+        condition: service_healthy
+      redis-node-2:
+        condition: service_healthy
+      redis-node-3:
+        condition: service_healthy
+      redis-node-4:
+        condition: service_healthy
+      redis-node-5:
+        condition: service_healthy
+      redis-node-6:
+        condition: service_healthy
+
+  redis-cluster-app:
+    build:
+      context: .
+      dockerfile: src/Dockerfile
+    container_name: redis-cluster-app
+    env_file: *redis-cluster-env
+    volumes:
+      - ./logs/:/app/logs
+    networks: *redis-cluster-net
+    depends_on:
+      redis-cluster-init:
+        condition: service_completed_successfully
+
+  redis-cluster-test:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    container_name: redis-cluster-test
+    profiles:
+      - test
+    command: >
+      sh -c "
+      pytest /app/test_redis_cluster.py -v
+      | 
+      tee /app/pytest_results/pytest_results.txt
+      "
+    env_file: *redis-cluster-env
+    volumes:
+      - ./tests:/app/pytest_results
+    networks: *redis-cluster-net
+
+networks:
+  redis_cluster_net:
+    driver: bridge

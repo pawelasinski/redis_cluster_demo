@@ -1,0 +1,4 @@
+.DS_Store
+.env
+conf/acl.conf
+tests/__pycache__
