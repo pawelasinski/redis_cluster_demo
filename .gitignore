@@ -1,4 +1,10 @@
 .DS_Store
+
 .env
 conf/acl.conf
+
 tests/__pycache__
+
+logs
+tests/pytest_results.txt
+data
