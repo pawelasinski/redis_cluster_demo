@@ -7,7 +7,7 @@ from redis.exceptions import RedisClusterException
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler("logs/redis_cluster_app.log", mode="w"),
         logging.StreamHandler()
